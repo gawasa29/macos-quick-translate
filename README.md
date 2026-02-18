@@ -3,10 +3,10 @@
 選択テキストを `CMD+C+C` で即翻訳する、メニューバー常駐アプリです。
 
 ## インストール（推奨）
-Homebrew Cask からのインストールが推奨です。
+Homebrew Cask からのインストールが推奨です。`brew tap` の事前実行は不要です。
 
 ```bash
-brew tap gawasa29/tap https://github.com/gawasa29/homebrew-tap && brew install --cask gawasa29/tap/quick-translate
+brew install --cask gawasa29/tap/quick-translate
 ```
 
 ## 初回セットアップ
