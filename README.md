@@ -1,140 +1,45 @@
-# macos-quick-translate
+# Quick Translate (macOS)
 
-macOS向けの高速翻訳アプリ（Swift Package Manager構成）です。
-`⌘ + C` を短時間に2回押す（`CMD+C+C`）と、選択中テキストを翻訳し、翻訳結果を軽量HUDで表示します。
+選択テキストを `CMD+C+C` で即翻訳する、メニューバー常駐アプリです。
 
-## 概要
-- macOS標準の `Translation` API を使って、選択テキストを即時翻訳します。
-- 外部翻訳API（DeepLなど）は使いません。
-- コア機能はCLIで検証し、UIはメニューバー常駐アプリとして提供します。
+## インストール（推奨）
+Homebrew Cask からのインストールが推奨です。
 
-## 対応環境
-- macOS `26.0` 以降（Translation API実行要件）
-- Swift `5.10+`
-- 権限: アクセシビリティ（グローバルキー監視のため）
-
-## セットアップ
-1. このディレクトリへ移動します。
 ```bash
-cd macos-quick-translate
-```
-2. ビルドします。
-```bash
-swift build
-```
-3. 必要に応じて翻訳モデルをインストールします。
-システム設定の `一般 > 言語と地域 > 翻訳言語` から対象言語をダウンロードしてください。
-
-## 最短導入（ソースから1コマンド）
-```bash
-cd macos-quick-translate
-./scripts/install.sh --open
+brew tap gawasa29/tap https://github.com/gawasa29/homebrew-tap
+brew install --cask gawasa29/tap/quick-translate
 ```
 
-インストール先のデフォルトは `~/Applications/Quick Translate.app` です。
-削除する場合:
-```bash
-cd macos-quick-translate
-./scripts/uninstall.sh
-```
-
-## プリビルド版（GitHub Releases）
-1. Releases から `QuickTranslate-<tag>.zip` をダウンロード
-2. 解凍して `Quick Translate.app` を `Applications` へ移動
-3. 初回起動して権限を許可
-
-未署名ビルドの場合、初回起動時にGatekeeper警告が出ることがあります。その場合はFinderでアプリを右クリックして `開く` を選択してください。
-
-## Homebrew Cask で配布する（メンテナ向け）
-このリポジトリはタグpush時に次を自動実行できます。
-- GitHub Release へ zip / sha256 を添付
-- Homebrew tap の `Casks/quick-translate.rb` を更新
-
-事前準備:
-1. tap リポジトリを用意（例: `YOUR_NAME/homebrew-tap`）
-2. このリポジトリの Actions 設定に以下を追加
-- Repository Variable: `HOMEBREW_TAP_REPOSITORY` = `YOUR_NAME/homebrew-tap`
-- Repository Secret: `HOMEBREW_TAP_GITHUB_TOKEN` = tap リポジトリへ push 可能なトークン
-
-リリース実行:
-```bash
-git tag macos-quick-translate-v0.1.0
-git push origin macos-quick-translate-v0.1.0
-```
-
-完了後、ユーザーは次でインストールできます。
-```bash
-brew tap YOUR_NAME/tap
-brew install --cask quick-translate
-```
+## 初回セットアップ
+1. アプリを起動
+2. アクセシビリティ権限を許可
+3. 翻訳モデルが未導入なら、システム設定 `一般 > 言語と地域 > 翻訳言語` でダウンロード
 
 ## 使い方
-### 1) CLI（コアロジック検証）
-```bash
-swift run quick-translate-cli "Hello world" JA
-```
+1. 翻訳したいテキストを選択
+2. `CMD + C` を短時間に2回押す（`CMD+C+C`）
+3. 翻訳結果がHUDで表示される
 
-### 2) macOSアプリ（メニューバー常駐）
-```bash
-swift run quick-translate-macos
-```
-
-起動後、アクセシビリティ権限を許可してください。
-メニューでは以下を操作できます。
-- `CMD+C+C を一時停止` / `CMD+C+C を再開`
+## メニューでできること
+- `CMD+C+C を一時停止 / 再開`
 - `ログイン時に起動`
-- `翻訳先言語`（`日本語 (JA)` / `英語 (US)` / `英語 (UK)`）
+- `翻訳先言語` の切替
 - `翻訳設定を開く`
-- `終了`
 
-翻訳結果はクリップボードを上書きせず、非モーダルHUDで表示されます。
-
-## 設定項目
-- `ログイン時に起動` をONにすると `~/Library/LaunchAgents/dev.gawasa.quick-translate-macos.plist` を作成します。
-- OFFにすると同ファイルを削除します。
-
-## トラブルシュート
-- `Unable to Translate` / 翻訳失敗
-  - 翻訳モデル未インストールの可能性があります。`一般 > 言語と地域 > 翻訳言語` を確認してください。
-- `Translation API の利用には macOS 26.0 以降が必要`
-  - OSバージョンを満たしていません。
-- HUDが表示されない
-  - アクセシビリティ権限が許可されているか確認してください。
-- 設定画面を直接開く
+## アップデート / アンインストール
 ```bash
-open "x-apple.systempreferences:com.apple.Localization-Settings.extension?translation"
+brew upgrade --cask gawasa29/tap/quick-translate
+brew uninstall --cask gawasa29/tap/quick-translate
 ```
 
-## テスト方法
+## よくある問題
+- `Unable to Translate` が出る:
+  - 翻訳モデル未導入の可能性があります。`翻訳言語` の設定を確認してください。
+- HUDが表示されない:
+  - アクセシビリティ権限を確認してください。
+
+## 開発者向け（最小）
 ```bash
 swift test
+swift run quick-translate-macos
 ```
-
-## リリース手順
-1. `swift test` を実行して全テストが通ることを確認
-2. `swift run quick-translate-cli "Hello" JA` でCLI疎通確認
-3. `swift run quick-translate-macos` で手動確認
-4. `CMD+C+C` 翻訳、言語切替、`ログイン時に起動` の動作確認
-5. `README.md` / `AGENTS.md` の差分確認後にコミット
-6. リリースタグを作成してpush（例: `macos-quick-translate-v0.1.0`）
-
-```bash
-git tag macos-quick-translate-v0.1.0
-git push origin macos-quick-translate-v0.1.0
-```
-
-タグpushで GitHub Actions `macos-quick-translate-release` が実行され、`QuickTranslate-<tag>.zip` が Release に自動添付されます。
-`HOMEBREW_TAP_REPOSITORY` と `HOMEBREW_TAP_GITHUB_TOKEN` が設定済みなら、同時に Homebrew Cask も更新されます。
-
-## 既知の制限
-- Translation API と翻訳モデルの状態に依存します。
-- 言語自動判定は短文や記号中心テキストで失敗する場合があります。
-- HUD表示時間は固定上限があり、非常に長い翻訳では読み切りにくい場合があります。
-
-## プライバシー
-- 本アプリは外部のサードパーティ翻訳APIへ直接送信しません。
-- 翻訳処理は macOS の `Translation` フレームワークに委譲されます。
-- 翻訳結果はHUD表示のみで、クリップボードは上書きしません。
-
-## ライセンス
-ライセンスは未設定です。公開配布前に明記してください。
