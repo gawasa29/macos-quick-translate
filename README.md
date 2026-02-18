@@ -6,8 +6,7 @@
 Homebrew Cask からのインストールが推奨です。
 
 ```bash
-brew tap gawasa29/tap https://github.com/gawasa29/homebrew-tap
-brew install --cask gawasa29/tap/quick-translate
+brew tap gawasa29/tap https://github.com/gawasa29/homebrew-tap && brew install --cask gawasa29/tap/quick-translate
 ```
 
 ## 初回セットアップ
@@ -43,3 +42,6 @@ brew uninstall --cask gawasa29/tap/quick-translate
 swift test
 swift run quick-translate-macos
 ```
+
+## ライセンス
+MIT License（`LICENSE` を参照）
