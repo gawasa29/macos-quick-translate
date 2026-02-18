@@ -11,6 +11,8 @@ Options:
   --configuration <name>    Swift build configuration: debug or release (default: release)
   --version <semver>        CFBundleShortVersionString (default: 0.1.0)
   --build-number <number>   CFBundleVersion (default: 1)
+  --signing-identity <id>   codesign identity (default: -, ad-hoc)
+  --no-sign                 Skip codesign
   -h, --help                Show this help
 USAGE
 }
@@ -20,6 +22,8 @@ OUTPUT_DIR="$PROJECT_DIR/out"
 CONFIGURATION="release"
 VERSION="0.1.0"
 BUILD_NUMBER="1"
+SIGNING_IDENTITY="-"
+SIGN_APP="true"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -38,6 +42,14 @@ while [[ $# -gt 0 ]]; do
     --build-number)
       BUILD_NUMBER="$2"
       shift 2
+      ;;
+    --signing-identity)
+      SIGNING_IDENTITY="$2"
+      shift 2
+      ;;
+    --no-sign)
+      SIGN_APP="false"
+      shift
       ;;
     -h|--help)
       usage
@@ -110,5 +122,15 @@ PLIST
 
 cp "$BINARY_PATH" "$APP_DIR/Contents/MacOS/$EXECUTABLE_NAME"
 chmod 755 "$APP_DIR/Contents/MacOS/$EXECUTABLE_NAME"
+
+if [[ "$SIGN_APP" == "true" ]]; then
+  CODESIGN_ARGS=(--force --deep --sign "$SIGNING_IDENTITY")
+  if [[ "$SIGNING_IDENTITY" != "-" ]]; then
+    CODESIGN_ARGS+=(--options runtime --timestamp)
+  fi
+
+  codesign "${CODESIGN_ARGS[@]}" "$APP_DIR"
+  codesign --verify --deep --strict --verbose=2 "$APP_DIR"
+fi
 
 echo "Created app bundle: $APP_DIR"

@@ -9,6 +9,8 @@ Homebrew Cask からのインストールが推奨です。`brew tap` の事前�
 brew install --cask gawasa29/tap/quick-translate
 ```
 
+配布用ビルドは `Developer ID` 署名 + notarization が必要です（未実施だと Gatekeeper でブロックされる場合があります）。
+
 ## 初回セットアップ
 1. アプリを起動
 2. アクセシビリティ権限を許可
@@ -36,6 +38,13 @@ brew uninstall --cask gawasa29/tap/quick-translate
   - 翻訳モデル未導入の可能性があります。`翻訳言語` の設定を確認してください。
 - HUDが表示されない:
   - アクセシビリティ権限を確認してください。
+- `Quick Translate` が「壊れているため開けません」と表示される:
+  - いったん削除して再インストールしたうえで、まだ発生する場合は以下を実行してください。
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Quick Translate.app"
+open "/Applications/Quick Translate.app"
+```
 
 ## 開発者向け（最小）
 ```bash

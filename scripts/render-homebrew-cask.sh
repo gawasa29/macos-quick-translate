@@ -91,6 +91,12 @@ cask "$TOKEN" do
 
   app "Quick Translate.app"
 
+  caveats <<~EOS
+    If macOS says this app is damaged, remove quarantine and reopen:
+      xattr -dr com.apple.quarantine "/Applications/Quick Translate.app"
+      open "/Applications/Quick Translate.app"
+  EOS
+
   uninstall quit: "dev.gawasa.quick-translate-macos",
             delete: "~/Library/LaunchAgents/dev.gawasa.quick-translate-macos.plist"
 
