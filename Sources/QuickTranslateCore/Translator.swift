@@ -17,18 +17,33 @@ public protocol Translator {
 }
 
 public enum TranslatorError: LocalizedError {
-    case missingAPIKey
-    case invalidResponse
-    case server(status: Int, message: String)
+    case emptyText
+    case invalidLanguageCode(String)
+    case unableToDetectSourceLanguage
+    case translationAPIRequiresNewerOS(minimumVersion: String)
+    case translationFrameworkUnavailable
+    case translationModelNotInstalled
+    case translationFailed(String)
 
     public var errorDescription: String? {
         switch self {
-        case .missingAPIKey:
-            return "DEEPL_API_KEY が設定されていません。"
-        case .invalidResponse:
-            return "翻訳APIのレスポンスが不正です。"
-        case let .server(status, message):
-            return "翻訳APIエラー status=\(status): \(message)"
+        case .emptyText:
+            return "翻訳元テキストが空です。"
+        case let .invalidLanguageCode(code):
+            return "言語コードが不正です: \(code)"
+        case .unableToDetectSourceLanguage:
+            return "翻訳元言語を判定できませんでした。"
+        case let .translationAPIRequiresNewerOS(minimumVersion):
+            return "Translation API の利用には \(minimumVersion) 以降が必要です。"
+        case .translationFrameworkUnavailable:
+            return "Translation.framework を利用できません。"
+        case .translationModelNotInstalled:
+            return """
+            翻訳モデルが未インストールです。システム設定の「一般 > 言語と地域 > 翻訳言語」で必要な言語をダウンロードしてください。
+            x-apple.systempreferences:com.apple.Localization-Settings.extension
+            """
+        case let .translationFailed(message):
+            return "翻訳に失敗しました: \(message)"
         }
     }
 }
