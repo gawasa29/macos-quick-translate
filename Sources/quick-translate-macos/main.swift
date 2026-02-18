@@ -3,6 +3,7 @@ import AppKit
 import Foundation
 import QuickTranslateCore
 
+@MainActor
 final class QuickTranslateApp: NSObject, NSApplicationDelegate {
     private enum DefaultsKey {
         static let targetLanguage = "quickTranslate.targetLanguage"
@@ -15,9 +16,9 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
     }
 
     private let languageOptions: [TargetLanguageOption] = [
-        .init(code: "JA-JP", title: "Japanese (JA)"),
-        .init(code: "EN-US", title: "English (US)"),
-        .init(code: "EN-GB", title: "English (UK)")
+        .init(code: "JA-JP", title: "日本語 (JA)"),
+        .init(code: "EN-US", title: "英語 (US)"),
+        .init(code: "EN-GB", title: "英語 (UK)")
     ]
     private let activeStatusTitle = "QT"
     private let pausedStatusTitle = "QT||"
@@ -27,15 +28,23 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
     private var detector = CommandCCDetector()
     private let pasteboard = NSPasteboard.general
     private let translator: any Translator
+    private let launchAtLoginManager: any LaunchAtLoginManaging
+    private let targetLanguageResolver = TargetLanguageResolver()
+    private let translationHUD = TranslationHUDPresenter()
     private var isShortcutEnabled: Bool
+    private var isLaunchAtLoginEnabled: Bool
     private var targetLanguage: String
     private var shortcutToggleItem: NSMenuItem?
+    private var launchAtLoginItem: NSMenuItem?
     private var languageMenuItems: [NSMenuItem] = []
 
     override init() {
+        let launchAtLoginManager = LaunchAtLoginManager()
         self.translator = CachedTranslator(base: AppleTranslationTranslator())
+        self.launchAtLoginManager = launchAtLoginManager
         self.targetLanguage = UserDefaults.standard.string(forKey: DefaultsKey.targetLanguage) ?? "JA-JP"
         self.isShortcutEnabled = UserDefaults.standard.object(forKey: DefaultsKey.shortcutEnabled) as? Bool ?? true
+        self.isLaunchAtLoginEnabled = launchAtLoginManager.isEnabled
         super.init()
     }
 
@@ -56,7 +65,7 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
 
         let menu = NSMenu()
 
-        let appTitle = NSMenuItem(title: "Quick Translate", action: nil, keyEquivalent: "")
+        let appTitle = NSMenuItem(title: "クイック翻訳", action: nil, keyEquivalent: "")
         appTitle.isEnabled = false
         menu.addItem(appTitle)
 
@@ -65,7 +74,12 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
         menu.addItem(toggleItem)
         shortcutToggleItem = toggleItem
 
-        let languageRoot = NSMenuItem(title: "Target Language", action: nil, keyEquivalent: "")
+        let launchAtLogin = NSMenuItem(title: "ログイン時に起動", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+        launchAtLogin.target = self
+        menu.addItem(launchAtLogin)
+        launchAtLoginItem = launchAtLogin
+
+        let languageRoot = NSMenuItem(title: "翻訳先言語", action: nil, keyEquivalent: "")
         let languageSubmenu = NSMenu()
         languageMenuItems = languageOptions.map { option in
             let item = NSMenuItem(title: option.title, action: #selector(selectTargetLanguage(_:)), keyEquivalent: "")
@@ -79,18 +93,19 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
 
-        let openSettings = NSMenuItem(title: "Open Translation Settings", action: #selector(openTranslationSettingsFromMenu), keyEquivalent: "")
+        let openSettings = NSMenuItem(title: "翻訳設定を開く", action: #selector(openTranslationSettingsFromMenu), keyEquivalent: "")
         openSettings.target = self
         menu.addItem(openSettings)
 
         menu.addItem(.separator())
-        let quitItem = NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "終了", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
 
         statusItem?.menu = menu
 
         updateShortcutMenuState()
+        updateLaunchAtLoginMenuState()
         updateLanguageMenuState()
     }
 
@@ -109,40 +124,21 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
 
     @MainActor
     private func translateCurrentSelection() async {
-        let previous = pasteboard.string(forType: .string)
-        copyCurrentSelection()
         try? await Task.sleep(nanoseconds: 120_000_000)
 
         guard let sourceText = pasteboard.string(forType: .string), !sourceText.isEmpty else { return }
 
-        let request = TranslationRequest(text: sourceText, targetLanguage: targetLanguage)
+        let resolvedTargetLanguage = targetLanguageResolver.resolveTargetLanguage(
+            sourceText: sourceText,
+            preferredTargetLanguage: targetLanguage
+        )
+        let request = TranslationRequest(text: sourceText, targetLanguage: resolvedTargetLanguage)
         do {
             let translated = try await translator.translate(request)
-            pasteboard.clearContents()
-            pasteboard.setString(translated, forType: .string)
-            showToast("翻訳結果をクリップボードにコピーしました")
+            translationHUD.show(text: translated)
         } catch {
-            if let previous {
-                pasteboard.clearContents()
-                pasteboard.setString(previous, forType: .string)
-            }
             handleTranslationError(error)
         }
-    }
-
-    private func copyCurrentSelection() {
-        guard let source = CGEventSource(stateID: .combinedSessionState) else { return }
-        let cmdDown = CGEvent(keyboardEventSource: source, virtualKey: 0x37, keyDown: true)
-        let cDown = CGEvent(keyboardEventSource: source, virtualKey: 0x08, keyDown: true)
-        cDown?.flags = .maskCommand
-        let cUp = CGEvent(keyboardEventSource: source, virtualKey: 0x08, keyDown: false)
-        cUp?.flags = .maskCommand
-        let cmdUp = CGEvent(keyboardEventSource: source, virtualKey: 0x37, keyDown: false)
-
-        cmdDown?.post(tap: .cghidEventTap)
-        cDown?.post(tap: .cghidEventTap)
-        cUp?.post(tap: .cghidEventTap)
-        cmdUp?.post(tap: .cghidEventTap)
     }
 
     @objc private func quitApp() { NSApp.terminate(nil) }
@@ -160,13 +156,29 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
         updateLanguageMenuState()
     }
 
+    @objc private func toggleLaunchAtLogin() {
+        let shouldEnable = !isLaunchAtLoginEnabled
+
+        do {
+            try launchAtLoginManager.setEnabled(shouldEnable)
+            isLaunchAtLoginEnabled = launchAtLoginManager.isEnabled
+            updateLaunchAtLoginMenuState()
+        } catch {
+            showToast("ログイン時起動の設定に失敗: \(error.localizedDescription)")
+        }
+    }
+
     @objc private func openTranslationSettingsFromMenu() {
         openTranslationSettings()
     }
 
     private func updateShortcutMenuState() {
-        shortcutToggleItem?.title = isShortcutEnabled ? "Pause CMD+C+C" : "Resume CMD+C+C"
+        shortcutToggleItem?.title = isShortcutEnabled ? "CMD+C+C を一時停止" : "CMD+C+C を再開"
         updateStatusItemAppearance()
+    }
+
+    private func updateLaunchAtLoginMenuState() {
+        launchAtLoginItem?.state = isLaunchAtLoginEnabled ? .on : .off
     }
 
     private func updateLanguageMenuState() {
@@ -183,7 +195,7 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
         guard let button = statusItem?.button else { return }
 
         let symbolName = isShortcutEnabled ? "character.bubble" : "pause.circle"
-        if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Quick Translate") {
+        if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: "クイック翻訳") {
             symbol.isTemplate = true
             button.image = symbol
             button.title = ""
@@ -192,7 +204,7 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
             button.title = isShortcutEnabled ? activeStatusTitle : pausedStatusTitle
         }
 
-        button.toolTip = "Quick Translate"
+        button.toolTip = "クイック翻訳"
     }
 
     private func handleTranslationError(_ error: Error) {
@@ -237,6 +249,203 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
         let alert = NSAlert()
         alert.messageText = message
         alert.runModal()
+    }
+}
+
+@MainActor
+private final class TranslationHUDPresenter {
+    private let horizontalPadding: CGFloat = 16
+    private let verticalPadding: CGFloat = 12
+    private let minWidth: CGFloat = 220
+    private let maxTextWidth: CGFloat = 440
+    private let minTextHeight: CGFloat = 20
+    private let minWindowHeight: CGFloat = 56
+    private let textWidthFudge: CGFloat = 12
+    private let textHeightFudge: CGFloat = 14
+    private let baseDismissInterval: TimeInterval = 3.2
+    private let maxDismissInterval: TimeInterval = 6.0
+    private let screenMargin: CGFloat = 12
+    private let cursorOffsetX: CGFloat = 16
+    private let cursorOffsetY: CGFloat = 18
+    private let hudFont = NSFont.systemFont(ofSize: 15, weight: .medium)
+
+    private var panel: NSPanel?
+    private var textField: NSTextField?
+    private var dismissWorkItem: DispatchWorkItem?
+
+    func show(text: String) {
+        let message = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !message.isEmpty else { return }
+
+        let panel = ensurePanel()
+        guard let textField else { return }
+        let mouse = NSEvent.mouseLocation
+        let screenFrame = screenContaining(point: mouse)?.visibleFrame
+            ?? NSScreen.main?.visibleFrame
+            ?? NSRect(x: 0, y: 0, width: 1280, height: 800)
+        let maxLabelHeight = max(
+            minTextHeight,
+            screenFrame.height - (screenMargin * 2) - (verticalPadding * 2)
+        )
+
+        let layout = layoutForMessage(message, maxLabelHeight: maxLabelHeight)
+        textField.stringValue = message
+        textField.frame = layout.labelFrame
+
+        panel.setFrame(
+            frameForHUD(size: layout.windowSize, mouse: mouse, screenFrame: screenFrame),
+            display: false
+        )
+        panel.alphaValue = 1.0
+        panel.orderFrontRegardless()
+
+        dismissWorkItem?.cancel()
+        let dismissInterval = min(
+            maxDismissInterval,
+            baseDismissInterval + Double(message.count) * 0.015
+        )
+        let work = DispatchWorkItem { [weak panel] in
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.18
+                panel?.animator().alphaValue = 0
+            } completionHandler: {
+                panel?.orderOut(nil)
+            }
+        }
+        dismissWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + dismissInterval, execute: work)
+    }
+
+    private func ensurePanel() -> NSPanel {
+        if let panel {
+            return panel
+        }
+
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: 100),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.level = .normal
+        panel.ignoresMouseEvents = true
+        panel.hidesOnDeactivate = false
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
+
+        let effectView = NSVisualEffectView(frame: panel.contentView?.bounds ?? .zero)
+        effectView.autoresizingMask = [.width, .height]
+        effectView.material = .hudWindow
+        effectView.blendingMode = .behindWindow
+        effectView.state = .active
+        effectView.wantsLayer = true
+        effectView.layer?.cornerRadius = 14
+        effectView.layer?.masksToBounds = true
+
+        let textField = NSTextField(wrappingLabelWithString: "")
+        textField.font = hudFont
+        textField.textColor = .labelColor
+        textField.lineBreakMode = .byCharWrapping
+        textField.maximumNumberOfLines = 0
+        if let cell = textField.cell as? NSTextFieldCell {
+            cell.wraps = true
+            cell.usesSingleLineMode = false
+            cell.truncatesLastVisibleLine = false
+            cell.isScrollable = false
+            cell.lineBreakMode = .byCharWrapping
+        }
+
+        effectView.addSubview(textField)
+        panel.contentView?.addSubview(effectView)
+
+        self.panel = panel
+        self.textField = textField
+        return panel
+    }
+
+    private func layoutForMessage(
+        _ message: String,
+        maxLabelHeight: CGFloat
+    ) -> (windowSize: CGSize, labelFrame: NSRect) {
+        let minimumLabelWidth = max(120, minWidth - horizontalPadding * 2)
+        let firstPass = measureText(message, constrainedToWidth: maxTextWidth)
+        let labelWidth = max(
+            minimumLabelWidth,
+            min(maxTextWidth, ceil(firstPass.width + textWidthFudge))
+        )
+
+        let secondPass = measureText(message, constrainedToWidth: labelWidth)
+        let labelHeight = max(
+            minTextHeight,
+            min(maxLabelHeight, ceil(secondPass.height + textHeightFudge))
+        )
+
+        let windowWidth = max(minWidth, labelWidth + horizontalPadding * 2)
+        let windowHeight = max(minWindowHeight, labelHeight + verticalPadding * 2)
+
+        let labelFrame = NSRect(
+            x: horizontalPadding,
+            y: verticalPadding,
+            width: windowWidth - horizontalPadding * 2,
+            height: windowHeight - verticalPadding * 2
+        )
+
+        return (CGSize(width: windowWidth, height: windowHeight), labelFrame)
+    }
+
+    private func frameForHUD(size: CGSize, mouse: NSPoint, screenFrame: NSRect) -> NSRect {
+        var x = mouse.x + cursorOffsetX
+        var y = mouse.y - size.height - cursorOffsetY
+
+        if x + size.width > screenFrame.maxX - screenMargin {
+            x = mouse.x - size.width - cursorOffsetX
+        }
+        if y < screenFrame.minY + screenMargin {
+            y = mouse.y + cursorOffsetY
+        }
+
+        let minX = screenFrame.minX + screenMargin
+        let maxX = screenFrame.maxX - size.width - screenMargin
+        let minY = screenFrame.minY + screenMargin
+        let maxY = screenFrame.maxY - size.height - screenMargin
+
+        x = min(max(x, minX), maxX)
+        y = min(max(y, minY), maxY)
+
+        return NSRect(x: x, y: y, width: size.width, height: size.height)
+    }
+
+    private func measureText(_ message: String, constrainedToWidth width: CGFloat) -> CGSize {
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineBreakMode = .byCharWrapping
+        let attributedString = NSAttributedString(
+            string: message,
+            attributes: [
+                .font: hudFont,
+                .paragraphStyle: paragraphStyle
+            ]
+        )
+
+        let textStorage = NSTextStorage(attributedString: attributedString)
+        let layoutManager = NSLayoutManager()
+        layoutManager.usesFontLeading = true
+        textStorage.addLayoutManager(layoutManager)
+
+        let textContainer = NSTextContainer(size: CGSize(width: width, height: .greatestFiniteMagnitude))
+        textContainer.lineBreakMode = .byCharWrapping
+        textContainer.lineFragmentPadding = 0
+        textContainer.maximumNumberOfLines = 0
+        layoutManager.addTextContainer(textContainer)
+        layoutManager.ensureLayout(for: textContainer)
+
+        let usedRect = layoutManager.usedRect(for: textContainer).integral
+        return CGSize(width: usedRect.width, height: usedRect.height)
+    }
+
+    private func screenContaining(point: NSPoint) -> NSScreen? {
+        NSScreen.screens.first(where: { NSMouseInRect(point, $0.frame, false) })
     }
 }
 
