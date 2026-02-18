@@ -25,6 +25,49 @@ swift build
 3. 必要に応じて翻訳モデルをインストールします。
 システム設定の `一般 > 言語と地域 > 翻訳言語` から対象言語をダウンロードしてください。
 
+## 最短導入（ソースから1コマンド）
+```bash
+cd macos-quick-translate
+./scripts/install.sh --open
+```
+
+インストール先のデフォルトは `~/Applications/Quick Translate.app` です。
+削除する場合:
+```bash
+cd macos-quick-translate
+./scripts/uninstall.sh
+```
+
+## プリビルド版（GitHub Releases）
+1. Releases から `QuickTranslate-<tag>.zip` をダウンロード
+2. 解凍して `Quick Translate.app` を `Applications` へ移動
+3. 初回起動して権限を許可
+
+未署名ビルドの場合、初回起動時にGatekeeper警告が出ることがあります。その場合はFinderでアプリを右クリックして `開く` を選択してください。
+
+## Homebrew Cask で配布する（メンテナ向け）
+このリポジトリはタグpush時に次を自動実行できます。
+- GitHub Release へ zip / sha256 を添付
+- Homebrew tap の `Casks/quick-translate.rb` を更新
+
+事前準備:
+1. tap リポジトリを用意（例: `YOUR_NAME/homebrew-tap`）
+2. このリポジトリの Actions 設定に以下を追加
+- Repository Variable: `HOMEBREW_TAP_REPOSITORY` = `YOUR_NAME/homebrew-tap`
+- Repository Secret: `HOMEBREW_TAP_GITHUB_TOKEN` = tap リポジトリへ push 可能なトークン
+
+リリース実行:
+```bash
+git tag macos-quick-translate-v0.1.0
+git push origin macos-quick-translate-v0.1.0
+```
+
+完了後、ユーザーは次でインストールできます。
+```bash
+brew tap YOUR_NAME/tap
+brew install --cask quick-translate
+```
+
 ## 使い方
 ### 1) CLI（コアロジック検証）
 ```bash
@@ -72,7 +115,16 @@ swift test
 2. `swift run quick-translate-cli "Hello" JA` でCLI疎通確認
 3. `swift run quick-translate-macos` で手動確認
 4. `CMD+C+C` 翻訳、言語切替、`ログイン時に起動` の動作確認
-5. `README.md` / `AGENTS.md` の差分確認後にコミット・タグ付け
+5. `README.md` / `AGENTS.md` の差分確認後にコミット
+6. リリースタグを作成してpush（例: `macos-quick-translate-v0.1.0`）
+
+```bash
+git tag macos-quick-translate-v0.1.0
+git push origin macos-quick-translate-v0.1.0
+```
+
+タグpushで GitHub Actions `macos-quick-translate-release` が実行され、`QuickTranslate-<tag>.zip` が Release に自動添付されます。
+`HOMEBREW_TAP_REPOSITORY` と `HOMEBREW_TAP_GITHUB_TOKEN` が設定済みなら、同時に Homebrew Cask も更新されます。
 
 ## 既知の制限
 - Translation API と翻訳モデルの状態に依存します。

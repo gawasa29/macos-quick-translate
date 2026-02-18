@@ -12,6 +12,10 @@
 - テスト: `swift test`
 - CLI: `swift run quick-translate-cli "Hello" JA`
 - App: `swift run quick-translate-macos`
+- App bundle生成: `./scripts/create-app-bundle.sh --output-dir out`
+- インストール: `./scripts/install.sh --open`
+- アンインストール: `./scripts/uninstall.sh`
+- Homebrew Cask生成: `./scripts/render-homebrew-cask.sh --version 0.1.0 --sha256 <sha> --url <asset-url>`
 
 ## 現在のUI仕様
 - メニューバー常駐アプリとして動作し、アイコンからメニューを開く。
