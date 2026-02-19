@@ -1,58 +1,110 @@
-# Quick Translate (macOS)
+# Quick Translate for macOS ⚡ - Translate selected text with CMD+C+C
+[English](README.md) | [日本語](README.ja.md)
 
-選択テキストを `CMD+C+C` で即翻訳する、メニューバー常駐アプリです。
+Quick Translate is a menu bar app for people who switch between Japanese and English throughout the day. It translates your current selection when you press `CMD+C` twice quickly, then shows the result in a lightweight HUD near your cursor. The app uses Apple Translation APIs and targets `macOS 26+`.
 
-## インストール（推奨）
-Homebrew Cask からのインストールが推奨です。`brew tap` の事前実行は不要です。
+## Install
 
+### Requirements
+- macOS 26.0 or later.
+- Apple translation models installed in `System Settings > General > Language & Region > Translation Languages`.
+- Accessibility permission enabled to detect the global shortcut.
+
+### Package manager
 ```bash
-brew install --cask gawasa29/tap/quick-translate
+brew install gawasa29/tap/quick-translate
 ```
 
-配布用ビルドは `Developer ID` 署名 + notarization が必要です（未実施だと Gatekeeper でブロックされる場合があります）。
-
-## 初回セットアップ
-1. アプリを起動
-2. アクセシビリティ権限を許可
-3. 翻訳モデルが未導入なら、システム設定 `一般 > 言語と地域 > 翻訳言語` でダウンロード
-
-## 使い方
-1. 翻訳したいテキストを選択
-2. `CMD + C` を短時間に2回押す（`CMD+C+C`）
-3. 翻訳結果がHUDで表示される
-
-## メニューでできること
-- `CMD+C+C を一時停止 / 再開`
-- `ログイン時に起動`
-- `翻訳先言語` の切替
-- `翻訳設定を開く`
-
-## アップデート / アンインストール
+### Build from source
 ```bash
-brew upgrade --cask gawasa29/tap/quick-translate
-brew uninstall --cask gawasa29/tap/quick-translate
+git clone https://github.com/gawasa29/macos-quick-translate.git
+cd macos-quick-translate
+./scripts/install.sh --open
 ```
 
-## よくある問題
-- `Unable to Translate` が出る:
-  - 翻訳モデル未導入の可能性があります。`翻訳言語` の設定を確認してください。
-- HUDが表示されない:
-  - アクセシビリティ権限を確認してください。
-- `Quick Translate` が「壊れているため開けません」と表示される:
-  - いったん削除して再インストールしたうえで、まだ発生する場合は以下を実行してください（`/Applications` と `~/Applications` の両方に対応）。
+## Quick Start
+
+1. Install the app and launch `Quick Translate`.
+2. Allow Accessibility permission when prompted.
+3. If translation fails, install required language models in `System Settings > General > Language & Region > Translation Languages`.
+4. Select text in any app and press `CMD+C` twice quickly.
+5. Confirm the translated text appears in the HUD.
 
 ```bash
-APP_PATH="/Applications/Quick Translate.app"
-[[ -d "$HOME/Applications/Quick Translate.app" ]] && APP_PATH="$HOME/Applications/Quick Translate.app"
-xattr -dr com.apple.quarantine "$APP_PATH"
-open "$APP_PATH"
+./scripts/install.sh --help
 ```
 
-## 開発者向け（最小）
+## Features
+
+- Menu bar workflow with no Dock app window.
+- `CMD+C+C` trigger with both global key monitoring and pasteboard fallback detection.
+- Target language switching (`JA-JP`, `EN-US`, `EN-GB`) with auto-flip for JA/EN source text.
+- Translation result shown in an on-screen HUD without overwriting clipboard content.
+- Optional `Launch at Login` toggle backed by a user LaunchAgent.
+- CLI (`quick-translate-cli`) to validate the translation core before UI changes.
+
+## Docs
+
+- [Project policy and run commands](AGENTS.md)
+- [Menu bar app entry point](Sources/quick-translate-macos/main.swift)
+- [CLI entry point](Sources/quick-translate-cli/main.swift)
+- [Core translation contracts](Sources/QuickTranslateCore/Translator.swift)
+- [Packaging scripts](scripts/)
+
+## Privacy / Permissions / Limitations
+
+### Privacy
+- This project does not use DeepL and does not require `DEEPL_API_KEY`.
+- Translation history is not persisted by the app.
+- Clipboard text is read only when you trigger `CMD+C+C`.
+
+### Permissions
+- Accessibility permission is required for global shortcut detection.
+- Launch at Login creates `~/Library/LaunchAgents/dev.gawasa.quick-translate-macos.plist`.
+
+### Limitations
+- Translation requires `macOS 26+` and installed Apple translation models.
+- The shortcut is fixed to `CMD+C+C`.
+- UI strings are currently optimized for Japanese users.
+
+## Getting started (dev)
+
+- Build and test:
 ```bash
+swift build
 swift test
+```
+
+- Validate translation core with CLI:
+```bash
+swift run quick-translate-cli "Hello" JA
+```
+
+- Run the menu bar app:
+```bash
 swift run quick-translate-macos
 ```
 
-## ライセンス
-MIT License（`LICENSE` を参照）
+## Build from source
+
+```bash
+./scripts/create-app-bundle.sh --output-dir out
+./scripts/install.sh --open
+```
+
+## Release
+
+```bash
+./scripts/create-app-bundle.sh --configuration release --output-dir out --version <version> --build-number <build-number>
+./scripts/render-homebrew-cask.sh --version <version> --sha256 <sha256> --url <asset-url>
+```
+
+For public distribution, sign with Developer ID and notarize the release artifact.
+
+## Related
+
+- [Homebrew Tap (`gawasa29/tap`)](https://github.com/gawasa29/homebrew-tap) - Distribution channel for the cask.
+
+## License
+
+MIT License. See [`LICENSE`](LICENSE).
