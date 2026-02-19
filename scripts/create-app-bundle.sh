@@ -24,6 +24,33 @@ VERSION="0.1.0"
 BUILD_NUMBER="1"
 SIGNING_IDENTITY="-"
 SIGN_APP="true"
+APP_ICON_NAME="AppIcon"
+
+generate_app_icon_icns() {
+  local output_icns="$1"
+  local tmp_dir
+  tmp_dir="$(mktemp -d)"
+
+  local source_png="$tmp_dir/${APP_ICON_NAME}-1024.png"
+  local iconset_dir="$tmp_dir/${APP_ICON_NAME}.iconset"
+
+  swift "$PROJECT_DIR/scripts/render-app-icon.swift" "$source_png"
+
+  mkdir -p "$iconset_dir"
+  sips -z 16 16 "$source_png" --out "$iconset_dir/icon_16x16.png" >/dev/null
+  sips -z 32 32 "$source_png" --out "$iconset_dir/icon_16x16@2x.png" >/dev/null
+  sips -z 32 32 "$source_png" --out "$iconset_dir/icon_32x32.png" >/dev/null
+  sips -z 64 64 "$source_png" --out "$iconset_dir/icon_32x32@2x.png" >/dev/null
+  sips -z 128 128 "$source_png" --out "$iconset_dir/icon_128x128.png" >/dev/null
+  sips -z 256 256 "$source_png" --out "$iconset_dir/icon_128x128@2x.png" >/dev/null
+  sips -z 256 256 "$source_png" --out "$iconset_dir/icon_256x256.png" >/dev/null
+  sips -z 512 512 "$source_png" --out "$iconset_dir/icon_256x256@2x.png" >/dev/null
+  sips -z 512 512 "$source_png" --out "$iconset_dir/icon_512x512.png" >/dev/null
+  cp "$source_png" "$iconset_dir/icon_512x512@2x.png"
+
+  iconutil -c icns "$iconset_dir" -o "$output_icns"
+  rm -rf "$tmp_dir"
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -87,6 +114,8 @@ fi
 rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
 
+generate_app_icon_icns "$APP_DIR/Contents/Resources/$APP_ICON_NAME.icns"
+
 cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -96,6 +125,8 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
   <string>en</string>
   <key>CFBundleDisplayName</key>
   <string>Quick Translate</string>
+  <key>CFBundleIconFile</key>
+  <string>$APP_ICON_NAME</string>
   <key>CFBundleExecutable</key>
   <string>$EXECUTABLE_NAME</string>
   <key>CFBundleIdentifier</key>
