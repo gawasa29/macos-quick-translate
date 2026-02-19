@@ -24,8 +24,12 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
     private let pausedStatusTitle = "QT||"
 
     private var statusItem: NSStatusItem?
-    private var monitor: Any?
-    private var detector = CommandCCDetector()
+    private var globalKeyMonitor: Any?
+    private var pasteboardPollTimer: Timer?
+    private var keyboardDetector = CommandCCDetector()
+    private var pasteboardDetector = CommandCCDetector()
+    private var lastPasteboardChangeCount = NSPasteboard.general.changeCount
+    private var lastTranslationTriggerAt: Date?
     private let pasteboard = NSPasteboard.general
     private let translator: any Translator
     private let launchAtLoginManager: any LaunchAtLoginManaging
@@ -54,9 +58,10 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        if let monitor {
-            NSEvent.removeMonitor(monitor)
+        if let globalKeyMonitor {
+            NSEvent.removeMonitor(globalKeyMonitor)
         }
+        pasteboardPollTimer?.invalidate()
     }
 
     private func setupMenuBar() {
@@ -110,16 +115,68 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
     }
 
     private func setupShortcutMonitor() {
-        monitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        setupGlobalKeyShortcutMonitor()
+        setupPasteboardShortcutFallback()
+    }
+
+    private func setupGlobalKeyShortcutMonitor() {
+        globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return }
             guard self.isShortcutEnabled else { return }
             let isCommandC = event.keyCode == 8 && event.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.command)
             guard isCommandC else { return }
 
-            if self.detector.registerCommandC() {
-                Task { await self.translateCurrentSelection() }
+            let now = Date()
+            if self.keyboardDetector.registerCommandC(at: now) {
+                self.triggerTranslation(at: now)
             }
         }
+    }
+
+    private func setupPasteboardShortcutFallback() {
+        lastPasteboardChangeCount = pasteboard.changeCount
+        pasteboardPollTimer?.invalidate()
+        pasteboardPollTimer = Timer(
+            timeInterval: 0.1,
+            target: self,
+            selector: #selector(handlePasteboardPoll),
+            userInfo: nil,
+            repeats: true
+        )
+
+        if let pasteboardPollTimer {
+            RunLoop.main.add(pasteboardPollTimer, forMode: .common)
+        }
+    }
+
+    @objc private func handlePasteboardPoll() {
+        guard isShortcutEnabled else { return }
+
+        let currentChangeCount = pasteboard.changeCount
+        let previousChangeCount = lastPasteboardChangeCount
+        guard currentChangeCount != previousChangeCount else { return }
+
+        lastPasteboardChangeCount = currentChangeCount
+
+        let changeDelta = max(1, currentChangeCount - previousChangeCount)
+        let now = Date()
+
+        for _ in 0..<changeDelta {
+            if pasteboardDetector.registerCommandC(at: now) {
+                triggerTranslation(at: now)
+                break
+            }
+        }
+    }
+
+    private func triggerTranslation(at now: Date) {
+        if let lastTranslationTriggerAt,
+           now.timeIntervalSince(lastTranslationTriggerAt) <= 0.35 {
+            return
+        }
+
+        lastTranslationTriggerAt = now
+        Task { await self.translateCurrentSelection() }
     }
 
     @MainActor
