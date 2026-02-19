@@ -91,10 +91,19 @@ cask "$TOKEN" do
 
   app "Quick Translate.app"
 
+  postflight do
+    # Non-notarized builds may be blocked by Gatekeeper as "damaged".
+    system_command "/usr/bin/xattr",
+                   args: ["-dr", "com.apple.quarantine", "#{appdir}/Quick Translate.app"],
+                   sudo: !appdir.writable?
+  end
+
   caveats <<~EOS
-    If macOS says this app is damaged, remove quarantine and reopen:
-      xattr -dr com.apple.quarantine "/Applications/Quick Translate.app"
-      open "/Applications/Quick Translate.app"
+    If macOS still says this app is damaged, run:
+      APP_PATH="/Applications/Quick Translate.app"
+      [[ -d "\$HOME/Applications/Quick Translate.app" ]] && APP_PATH="\$HOME/Applications/Quick Translate.app"
+      xattr -dr com.apple.quarantine "\$APP_PATH"
+      open "\$APP_PATH"
   EOS
 
   uninstall quit: "dev.gawasa.quick-translate-macos",

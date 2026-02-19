@@ -53,6 +53,9 @@ mkdir -p "$INSTALL_DIR"
 
 APP_PATH="$INSTALL_DIR/Quick Translate.app"
 
+# Safety: clear quarantine if attributes were inherited from a downloaded workspace.
+xattr -dr com.apple.quarantine "$APP_PATH" 2>/dev/null || true
+
 echo "Installed: $APP_PATH"
 echo "Run this app once and grant Accessibility permission if prompted."
 

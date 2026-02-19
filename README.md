@@ -39,11 +39,13 @@ brew uninstall --cask gawasa29/tap/quick-translate
 - HUDが表示されない:
   - アクセシビリティ権限を確認してください。
 - `Quick Translate` が「壊れているため開けません」と表示される:
-  - いったん削除して再インストールしたうえで、まだ発生する場合は以下を実行してください。
+  - いったん削除して再インストールしたうえで、まだ発生する場合は以下を実行してください（`/Applications` と `~/Applications` の両方に対応）。
 
 ```bash
-xattr -dr com.apple.quarantine "/Applications/Quick Translate.app"
-open "/Applications/Quick Translate.app"
+APP_PATH="/Applications/Quick Translate.app"
+[[ -d "$HOME/Applications/Quick Translate.app" ]] && APP_PATH="$HOME/Applications/Quick Translate.app"
+xattr -dr com.apple.quarantine "$APP_PATH"
+open "$APP_PATH"
 ```
 
 ## 開発者向け（最小）
