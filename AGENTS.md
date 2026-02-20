@@ -22,7 +22,7 @@
 - ショートカットは `CMD+C+C`（短時間の2回コピー）で翻訳を実行する。
 - メニューから `Pause/Resume CMD+C+C` でショートカットをON/OFFできる。
 - メニューから `Launch at Login` でログイン時起動をON/OFFできる（`LaunchAgents` を使用）。
-- メニューから翻訳先言語を切り替えできる（`JA-JP` / `EN-US` / `EN-GB`）。
+- メニューの `Target Language` で、Apple Translation の対応言語から翻訳先を選択できる。
 - メニューから `Open Translation Settings` でシステムの言語設定を開ける。
 - 翻訳結果はクリップボードに上書きせず、右上に軽量HUDとして短時間表示する。
 

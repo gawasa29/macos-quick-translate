@@ -26,9 +26,10 @@ cd macos-quick-translate
 
 1. アプリをインストールして `Quick Translate` を起動します。
 2. プロンプトが表示されたらアクセシビリティ権限を許可します。
-3. 翻訳に失敗する場合は、`システム設定 > 一般 > 言語と地域 > 翻訳言語` で必要な言語モデルをインストールします。
-4. 任意のアプリでテキストを選択し、`CMD+C` を短時間で 2 回押します。
-5. 翻訳結果が HUD に表示されることを確認します。
+3. メニューの `Target Language` から翻訳先言語を選択します。
+4. 翻訳に失敗する場合は、`システム設定 > 一般 > 言語と地域 > 翻訳言語` で必要な言語モデルをインストールします。
+5. 任意のアプリでテキストを選択し、`CMD+C` を短時間で 2 回押します。
+6. 翻訳結果が HUD に表示されることを確認します。
 
 ```bash
 ./scripts/install.sh --help
@@ -38,7 +39,7 @@ cd macos-quick-translate
 
 - Dock ウィンドウを持たないメニューバー中心のワークフロー。
 - グローバルキー監視とペーストボード監視の両方による `CMD+C+C` トリガー検知。
-- 翻訳先切り替え（`JA-JP` / `EN-US` / `EN-GB`）と JA/EN 入力時の自動反転。
+- Apple Translation の対応言語から構成される翻訳先言語ピッカー。
 - クリップボードを上書きせず、翻訳結果を HUD で表示。
 - ユーザー LaunchAgent ベースの `Launch at Login` 切り替え。
 - UI 変更前に翻訳コアを検証できる CLI（`quick-translate-cli`）。
@@ -65,7 +66,7 @@ cd macos-quick-translate
 ### Limitations
 - 翻訳には `macOS 26+` と Apple 翻訳モデルのインストールが必要です。
 - ショートカットは `CMD+C+C` 固定です。
-- UI 文字列は現在日本語ユーザー向けに最適化されています。
+- 利用可能な翻訳先言語は Apple Translation framework の対応状況に依存します。
 
 ## Getting started (dev)
 

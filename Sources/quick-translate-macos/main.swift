@@ -2,6 +2,9 @@
 import AppKit
 import Foundation
 import QuickTranslateCore
+#if canImport(Translation)
+import Translation
+#endif
 
 @MainActor
 final class QuickTranslateApp: NSObject, NSApplicationDelegate {
@@ -10,16 +13,7 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
         static let shortcutEnabled = "quickTranslate.shortcutEnabled"
     }
 
-    private struct TargetLanguageOption {
-        let code: String
-        let title: String
-    }
-
-    private let languageOptions: [TargetLanguageOption] = [
-        .init(code: "JA-JP", title: "日本語 (JA)"),
-        .init(code: "EN-US", title: "英語 (US)"),
-        .init(code: "EN-GB", title: "英語 (UK)")
-    ]
+    private let defaultTargetLanguage = "ja"
     private let activeStatusTitle = "QT"
     private let pausedStatusTitle = "QT||"
 
@@ -33,22 +27,23 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
     private let pasteboard = NSPasteboard.general
     private let translator: any Translator
     private let launchAtLoginManager: any LaunchAtLoginManaging
-    private let targetLanguageResolver = TargetLanguageResolver()
     private let translationHUD = TranslationHUDPresenter()
     private var isShortcutEnabled: Bool
     private var isLaunchAtLoginEnabled: Bool
     private var targetLanguage: String
     private var shortcutToggleItem: NSMenuItem?
     private var launchAtLoginItem: NSMenuItem?
-    private var languageMenuItems: [NSMenuItem] = []
+    private var targetLanguageMenu: NSMenu?
+    private var targetLanguageItems: [NSMenuItem] = []
+    private var loadLanguagesTask: Task<Void, Never>?
 
     override init() {
         let launchAtLoginManager = LaunchAtLoginManager()
         self.translator = CachedTranslator(base: AppleTranslationTranslator())
         self.launchAtLoginManager = launchAtLoginManager
-        self.targetLanguage = UserDefaults.standard.string(forKey: DefaultsKey.targetLanguage) ?? "JA-JP"
         self.isShortcutEnabled = UserDefaults.standard.object(forKey: DefaultsKey.shortcutEnabled) as? Bool ?? true
         self.isLaunchAtLoginEnabled = launchAtLoginManager.isEnabled
+        self.targetLanguage = UserDefaults.standard.string(forKey: DefaultsKey.targetLanguage) ?? defaultTargetLanguage
         super.init()
     }
 
@@ -62,6 +57,7 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
             NSEvent.removeMonitor(globalKeyMonitor)
         }
         pasteboardPollTimer?.invalidate()
+        loadLanguagesTask?.cancel()
     }
 
     private func setupMenuBar() {
@@ -70,7 +66,7 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
 
         let menu = NSMenu()
 
-        let appTitle = NSMenuItem(title: "クイック翻訳", action: nil, keyEquivalent: "")
+        let appTitle = NSMenuItem(title: "Quick Translate", action: nil, keyEquivalent: "")
         appTitle.isEnabled = false
         menu.addItem(appTitle)
 
@@ -79,31 +75,28 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
         menu.addItem(toggleItem)
         shortcutToggleItem = toggleItem
 
-        let launchAtLogin = NSMenuItem(title: "ログイン時に起動", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+        let launchAtLogin = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
         launchAtLogin.target = self
         menu.addItem(launchAtLogin)
         launchAtLoginItem = launchAtLogin
 
-        let languageRoot = NSMenuItem(title: "翻訳先言語", action: nil, keyEquivalent: "")
-        let languageSubmenu = NSMenu()
-        languageMenuItems = languageOptions.map { option in
-            let item = NSMenuItem(title: option.title, action: #selector(selectTargetLanguage(_:)), keyEquivalent: "")
-            item.target = self
-            item.representedObject = option.code
-            languageSubmenu.addItem(item)
-            return item
-        }
-        menu.setSubmenu(languageSubmenu, for: languageRoot)
-        menu.addItem(languageRoot)
+        let targetLanguageRoot = NSMenuItem(title: "Target Language", action: nil, keyEquivalent: "")
+        let targetLanguageMenu = NSMenu()
+        let loadingItem = NSMenuItem(title: "Loading languages...", action: nil, keyEquivalent: "")
+        loadingItem.isEnabled = false
+        targetLanguageMenu.addItem(loadingItem)
+        menu.setSubmenu(targetLanguageMenu, for: targetLanguageRoot)
+        menu.addItem(targetLanguageRoot)
+        self.targetLanguageMenu = targetLanguageMenu
 
         menu.addItem(.separator())
 
-        let openSettings = NSMenuItem(title: "翻訳設定を開く", action: #selector(openTranslationSettingsFromMenu), keyEquivalent: "")
+        let openSettings = NSMenuItem(title: "Open Translation Settings", action: #selector(openTranslationSettingsFromMenu), keyEquivalent: "")
         openSettings.target = self
         menu.addItem(openSettings)
 
         menu.addItem(.separator())
-        let quitItem = NSMenuItem(title: "終了", action: #selector(quitApp), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
 
@@ -111,7 +104,7 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
 
         updateShortcutMenuState()
         updateLaunchAtLoginMenuState()
-        updateLanguageMenuState()
+        refreshTargetLanguageMenu()
     }
 
     private func setupShortcutMonitor() {
@@ -184,12 +177,7 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
         try? await Task.sleep(nanoseconds: 120_000_000)
 
         guard let sourceText = pasteboard.string(forType: .string), !sourceText.isEmpty else { return }
-
-        let resolvedTargetLanguage = targetLanguageResolver.resolveTargetLanguage(
-            sourceText: sourceText,
-            preferredTargetLanguage: targetLanguage
-        )
-        let request = TranslationRequest(text: sourceText, targetLanguage: resolvedTargetLanguage)
+        let request = TranslationRequest(text: sourceText, targetLanguage: targetLanguage)
         do {
             let translated = try await translator.translate(request)
             translationHUD.show(text: translated)
@@ -206,13 +194,6 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
         updateShortcutMenuState()
     }
 
-    @objc private func selectTargetLanguage(_ sender: NSMenuItem) {
-        guard let code = sender.representedObject as? String else { return }
-        targetLanguage = code
-        UserDefaults.standard.set(code, forKey: DefaultsKey.targetLanguage)
-        updateLanguageMenuState()
-    }
-
     @objc private func toggleLaunchAtLogin() {
         let shouldEnable = !isLaunchAtLoginEnabled
 
@@ -221,7 +202,7 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
             isLaunchAtLoginEnabled = launchAtLoginManager.isEnabled
             updateLaunchAtLoginMenuState()
         } catch {
-            showToast("ログイン時起動の設定に失敗: \(error.localizedDescription)")
+            showToast("Failed to update Launch at Login: \(error.localizedDescription)")
         }
     }
 
@@ -230,7 +211,7 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
     }
 
     private func updateShortcutMenuState() {
-        shortcutToggleItem?.title = isShortcutEnabled ? "CMD+C+C を一時停止" : "CMD+C+C を再開"
+        shortcutToggleItem?.title = isShortcutEnabled ? "Pause CMD+C+C" : "Resume CMD+C+C"
         updateStatusItemAppearance()
     }
 
@@ -238,13 +219,73 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
         launchAtLoginItem?.state = isLaunchAtLoginEnabled ? .on : .off
     }
 
-    private func updateLanguageMenuState() {
-        for item in languageMenuItems {
-            guard let code = item.representedObject as? String else {
-                item.state = .off
-                continue
+    private func refreshTargetLanguageMenu() {
+        #if canImport(Translation)
+        loadLanguagesTask?.cancel()
+        loadLanguagesTask = Task { [weak self] in
+            guard let self else { return }
+            let languages = await LanguageAvailability().supportedLanguages
+            await MainActor.run {
+                self.applySupportedTargetLanguages(languages)
             }
-            item.state = (code == targetLanguage) ? .on : .off
+        }
+        #else
+        applySupportedTargetLanguages([])
+        #endif
+    }
+
+    private func applySupportedTargetLanguages(_ languages: [Locale.Language]) {
+        guard let targetLanguageMenu else { return }
+
+        targetLanguageMenu.removeAllItems()
+        targetLanguageItems.removeAll(keepingCapacity: false)
+
+        let identifiers = Array(
+            Set(languages.map(\.minimalIdentifier))
+        ).sorted { lhs, rhs in
+            languageDisplayName(for: lhs).localizedCaseInsensitiveCompare(languageDisplayName(for: rhs)) == .orderedAscending
+        }
+
+        guard !identifiers.isEmpty else {
+            let unavailable = NSMenuItem(title: "No supported languages found", action: nil, keyEquivalent: "")
+            unavailable.isEnabled = false
+            targetLanguageMenu.addItem(unavailable)
+            return
+        }
+
+        if !identifiers.contains(targetLanguage) {
+            targetLanguage = identifiers.first(where: { $0 == defaultTargetLanguage }) ?? identifiers[0]
+            UserDefaults.standard.set(targetLanguage, forKey: DefaultsKey.targetLanguage)
+        }
+
+        for identifier in identifiers {
+            let item = NSMenuItem(
+                title: languageDisplayName(for: identifier),
+                action: #selector(selectTargetLanguage(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.representedObject = identifier
+            item.state = (identifier == targetLanguage) ? .on : .off
+            targetLanguageMenu.addItem(item)
+            targetLanguageItems.append(item)
+        }
+    }
+
+    private func languageDisplayName(for identifier: String) -> String {
+        let normalized = identifier.replacingOccurrences(of: "_", with: "-")
+        let englishLocale = Locale(identifier: "en")
+        let displayName = englishLocale.localizedString(forIdentifier: normalized) ?? normalized
+        return "\(displayName) (\(normalized))"
+    }
+
+    @objc private func selectTargetLanguage(_ sender: NSMenuItem) {
+        guard let selectedLanguage = sender.representedObject as? String else { return }
+        targetLanguage = selectedLanguage
+        UserDefaults.standard.set(targetLanguage, forKey: DefaultsKey.targetLanguage)
+
+        for item in targetLanguageItems {
+            item.state = (item.representedObject as? String == selectedLanguage) ? .on : .off
         }
     }
 
@@ -252,7 +293,7 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
         guard let button = statusItem?.button else { return }
 
         let symbolName = isShortcutEnabled ? "character.bubble" : "pause.circle"
-        if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: "クイック翻訳") {
+        if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Quick Translate") {
             symbol.isTemplate = true
             button.image = symbol
             button.title = ""
@@ -261,7 +302,7 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
             button.title = isShortcutEnabled ? activeStatusTitle : pausedStatusTitle
         }
 
-        button.toolTip = "クイック翻訳"
+        button.toolTip = "Quick Translate"
     }
 
     private func handleTranslationError(_ error: Error) {
@@ -271,15 +312,15 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
             return
         }
 
-        showToast("翻訳に失敗: \(error.localizedDescription)")
+        showToast("Translation failed: \(error.localizedDescription)")
     }
 
     private func showInstallGuide() {
         let alert = NSAlert()
-        alert.messageText = "翻訳モデルが見つかりません"
-        alert.informativeText = "「一般 > 言語と地域 > 翻訳言語」で言語をダウンロードしてください。設定画面を開きますか？"
-        alert.addButton(withTitle: "設定を開く")
-        alert.addButton(withTitle: "閉じる")
+        alert.messageText = "Translation model not installed"
+        alert.informativeText = "Install language models in System Settings > General > Language & Region > Translation Languages. Open settings now?"
+        alert.addButton(withTitle: "Open Settings")
+        alert.addButton(withTitle: "Close")
 
         if alert.runModal() == .alertFirstButtonReturn {
             openTranslationSettings()
@@ -299,7 +340,7 @@ final class QuickTranslateApp: NSObject, NSApplicationDelegate {
             }
         }
 
-        showToast("システム設定を開けませんでした。手動で「一般 > 言語と地域」を開いてください。")
+        showToast("Couldn't open System Settings. Please open General > Language & Region manually.")
     }
 
     private func showToast(_ message: String) {

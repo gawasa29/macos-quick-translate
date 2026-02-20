@@ -26,9 +26,10 @@ cd macos-quick-translate
 
 1. Install the app and launch `Quick Translate`.
 2. Allow Accessibility permission when prompted.
-3. If translation fails, install required language models in `System Settings > General > Language & Region > Translation Languages`.
-4. Select text in any app and press `CMD+C` twice quickly.
-5. Confirm the translated text appears in the HUD.
+3. Choose your destination language from `Target Language` in the menu.
+4. If translation fails, install required language models in `System Settings > General > Language & Region > Translation Languages`.
+5. Select text in any app and press `CMD+C` twice quickly.
+6. Confirm the translated text appears in the HUD.
 
 ```bash
 ./scripts/install.sh --help
@@ -38,7 +39,7 @@ cd macos-quick-translate
 
 - Menu bar workflow with no Dock app window.
 - `CMD+C+C` trigger with both global key monitoring and pasteboard fallback detection.
-- Target language switching (`JA-JP`, `EN-US`, `EN-GB`) with auto-flip for JA/EN source text.
+- Target language picker built from Apple Translation supported languages.
 - Translation result shown in an on-screen HUD without overwriting clipboard content.
 - Optional `Launch at Login` toggle backed by a user LaunchAgent.
 - CLI (`quick-translate-cli`) to validate the translation core before UI changes.
@@ -65,7 +66,7 @@ cd macos-quick-translate
 ### Limitations
 - Translation requires `macOS 26+` and installed Apple translation models.
 - The shortcut is fixed to `CMD+C+C`.
-- UI strings are currently optimized for Japanese users.
+- Available target languages depend on Apple Translation framework support.
 
 ## Getting started (dev)
 
