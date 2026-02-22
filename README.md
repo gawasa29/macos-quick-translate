@@ -1,7 +1,7 @@
 # Quick Translate for macOS ⚡ - Instant HUD translation with CMD+C+C
 [English](README.md) | [日本語](README.ja.md)
 
-Quick Translate is a menu bar app for people who switch between Japanese and English throughout the day. It is designed as a practical alternative when DeepL's `CMD+C+C` flow feels slow to launch. Press `CMD+C` twice quickly to translate your current selection, then get the result in a lightweight HUD near your cursor. The app uses Apple Translation APIs and targets `macOS 26+`.
+Quick Translate is a menu bar app for people who switch languages throughout the day. It is designed as a practical alternative when DeepL's `CMD+C+C` flow feels slow to launch. It supports multiple target languages available in Apple Translation. Press `CMD+C` twice quickly to translate your current selection, then get the result in a lightweight HUD near your cursor. The app uses Apple Translation APIs and targets `macOS 26+`.
 
 ## Install
 
@@ -41,6 +41,7 @@ cd macos-quick-translate
 - Positioned as a practical replacement when DeepL `CMD+C+C` startup feels slow.
 - `CMD+C+C` trigger using both global key monitoring and pasteboard fallback detection.
 - Target language picker built from Apple Translation supported languages.
+- Supports multiple target languages available in Apple Translation.
 - Translation result shown in an on-screen HUD without overwriting clipboard content.
 - Optional `Launch at Login` toggle backed by a user LaunchAgent.
 - CLI (`quick-translate-cli`) to validate translation core behavior before UI changes.
