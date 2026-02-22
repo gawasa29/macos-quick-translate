@@ -3,6 +3,8 @@
 
 Quick Translate は、日本語と英語を行き来しながら作業する人向けのメニューバーアプリです。DeepL の `CMD+C+C` 起動が遅いと感じる場面での実用的な代替として設計しています。`CMD+C` を短時間で 2 回押すと現在の選択テキストを翻訳し、結果をカーソル付近の軽量 HUD に表示します。Apple Translation API を利用し、`macOS 26+` を対象にしています。
 
+![Quick Translate HUD プレビュー](assets/readme-preview.png)
+
 ## Install
 
 ### Requirements

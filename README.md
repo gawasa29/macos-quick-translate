@@ -3,6 +3,8 @@
 
 Quick Translate is a menu bar app for people who switch languages throughout the day. It is designed as a practical alternative when DeepL's `CMD+C+C` flow feels slow to launch. It supports multiple target languages available in Apple Translation. Press `CMD+C` twice quickly to translate your current selection, then get the result in a lightweight HUD near your cursor. The app uses Apple Translation APIs and targets `macOS 26+`.
 
+![Quick Translate HUD preview](assets/readme-preview.png)
+
 ## Install
 
 ### Requirements
