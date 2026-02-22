@@ -1,7 +1,7 @@
-# Quick Translate for macOS ⚡ - Translate selected text with CMD+C+C
+# Quick Translate for macOS ⚡ - Instant HUD translation with CMD+C+C
 [English](README.md) | [日本語](README.ja.md)
 
-Quick Translate is a menu bar app for people who switch between Japanese and English throughout the day. It translates your current selection when you press `CMD+C` twice quickly, then shows the result in a lightweight HUD near your cursor. The app uses Apple Translation APIs and targets `macOS 26+`.
+Quick Translate is a menu bar app for people who switch between Japanese and English throughout the day. It is designed as a practical alternative when DeepL's `CMD+C+C` flow feels slow to launch. Press `CMD+C` twice quickly to translate your current selection, then get the result in a lightweight HUD near your cursor. The app uses Apple Translation APIs and targets `macOS 26+`.
 
 ## Install
 
@@ -26,10 +26,10 @@ cd macos-quick-translate
 
 1. Install the app and launch `Quick Translate`.
 2. Allow Accessibility permission when prompted.
-3. Choose your destination language from `Target Language` in the menu.
-4. If translation fails, install required language models in `System Settings > General > Language & Region > Translation Languages`.
-5. Select text in any app and press `CMD+C` twice quickly.
-6. Confirm the translated text appears in the HUD.
+3. Pick your destination language from `Target Language` in the menu.
+4. Select text in any app and press `CMD+C` twice quickly.
+5. Confirm the translated text appears in the HUD.
+6. If translation fails, open `Open Translation Settings` from the menu and install required models.
 
 ```bash
 ./scripts/install.sh --help
@@ -38,11 +38,12 @@ cd macos-quick-translate
 ## Features
 
 - Menu bar workflow with no Dock app window.
-- `CMD+C+C` trigger with both global key monitoring and pasteboard fallback detection.
+- Positioned as a practical replacement when DeepL `CMD+C+C` startup feels slow.
+- `CMD+C+C` trigger using both global key monitoring and pasteboard fallback detection.
 - Target language picker built from Apple Translation supported languages.
 - Translation result shown in an on-screen HUD without overwriting clipboard content.
 - Optional `Launch at Login` toggle backed by a user LaunchAgent.
-- CLI (`quick-translate-cli`) to validate the translation core before UI changes.
+- CLI (`quick-translate-cli`) to validate translation core behavior before UI changes.
 
 ## Docs
 
@@ -70,27 +71,25 @@ cd macos-quick-translate
 
 ## Getting started (dev)
 
-- Build and test:
 ```bash
 swift build
 swift test
-```
-
-- Validate translation core with CLI:
-```bash
 swift run quick-translate-cli "Hello" JA
-```
-
-- Run the menu bar app:
-```bash
 swift run quick-translate-macos
 ```
 
-## Build from source
+## Build app bundle
 
 ```bash
 ./scripts/create-app-bundle.sh --output-dir out
 ./scripts/install.sh --open
+```
+
+## Uninstall
+
+```bash
+brew uninstall quick-translate
+./scripts/uninstall.sh
 ```
 
 ## Release

@@ -1,7 +1,7 @@
-# Quick Translate for macOS ⚡ - CMD+C+C で選択テキストを翻訳
+# Quick Translate for macOS ⚡ - CMD+C+C で即時 HUD 翻訳
 [English](README.md) | [日本語](README.ja.md)
 
-Quick Translate は、日本語と英語を行き来しながら作業する人向けのメニューバーアプリです。`CMD+C` を短時間で 2 回押すと現在の選択テキストを翻訳し、結果をカーソル付近の軽量 HUD に表示します。Apple Translation API を利用し、`macOS 26+` を対象にしています。
+Quick Translate は、日本語と英語を行き来しながら作業する人向けのメニューバーアプリです。DeepL の `CMD+C+C` 起動が遅いと感じる場面での実用的な代替として設計しています。`CMD+C` を短時間で 2 回押すと現在の選択テキストを翻訳し、結果をカーソル付近の軽量 HUD に表示します。Apple Translation API を利用し、`macOS 26+` を対象にしています。
 
 ## Install
 
@@ -27,9 +27,9 @@ cd macos-quick-translate
 1. アプリをインストールして `Quick Translate` を起動します。
 2. プロンプトが表示されたらアクセシビリティ権限を許可します。
 3. メニューの `Target Language` から翻訳先言語を選択します。
-4. 翻訳に失敗する場合は、`システム設定 > 一般 > 言語と地域 > 翻訳言語` で必要な言語モデルをインストールします。
-5. 任意のアプリでテキストを選択し、`CMD+C` を短時間で 2 回押します。
-6. 翻訳結果が HUD に表示されることを確認します。
+4. 任意のアプリでテキストを選択し、`CMD+C` を短時間で 2 回押します。
+5. 翻訳結果が HUD に表示されることを確認します。
+6. 翻訳に失敗する場合は、メニューの `Open Translation Settings` を開いて必要な言語モデルをインストールします。
 
 ```bash
 ./scripts/install.sh --help
@@ -38,6 +38,7 @@ cd macos-quick-translate
 ## Features
 
 - Dock ウィンドウを持たないメニューバー中心のワークフロー。
+- DeepL の `CMD+C+C` 起動が遅いときの実用的な代替というポジション。
 - グローバルキー監視とペーストボード監視の両方による `CMD+C+C` トリガー検知。
 - Apple Translation の対応言語から構成される翻訳先言語ピッカー。
 - クリップボードを上書きせず、翻訳結果を HUD で表示。
@@ -70,27 +71,25 @@ cd macos-quick-translate
 
 ## Getting started (dev)
 
-- Build and test:
 ```bash
 swift build
 swift test
-```
-
-- Validate translation core with CLI:
-```bash
 swift run quick-translate-cli "Hello" JA
-```
-
-- Run the menu bar app:
-```bash
 swift run quick-translate-macos
 ```
 
-## Build from source
+## Build app bundle
 
 ```bash
 ./scripts/create-app-bundle.sh --output-dir out
 ./scripts/install.sh --open
+```
+
+## Uninstall
+
+```bash
+brew uninstall quick-translate
+./scripts/uninstall.sh
 ```
 
 ## Release
